@@ -1,0 +1,393 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+   <meta http-equiv="Content-Type" content="text/html;charset=UTF-8" />
+   <title>Drag and drop, automatic upload</title>
+   <style type="text/css">
+
+*
+{
+    margin: 0px 0px 0px 0px;
+    padding: 0px 0px 0px 0px;
+}
+
+HTML
+{
+    height: 100%;
+}
+
+body
+{
+    font-family: 'Segoe UI' , Verdana, Helvetica, Sans-Serif;
+    font-size: 10pt;
+    height: 100%;
+    background-color: white;
+    color: #424242;
+    position: relative;
+    margin: 0px auto 0px auto;
+    min-width: 960px;
+    max-width: 1080px;
+    padding: 0px 40px 0px 40px;
+}
+
+p
+{
+    padding: 0px 0px 10pt 0px;
+}
+
+a
+{
+    text-decoration: none;
+}
+
+a, a:visited, a:hover
+{
+    color: #00a3ef;
+}
+
+a:hover, a:visited:hover
+{
+    color: #00a3ef;
+    text-decoration: underline;
+}
+
+.bold
+{
+    font-family: 'Segoe UI Semibold';
+}
+
+#title {
+    color: #00A3EF;
+    font-size: 24pt;
+    font-weight: normal;
+    padding: 40px 0 0;
+}
+#intro {
+ margin: 40px 0px 0px 0px;
+}
+
+#dropTarget {
+    background: #CCCCCC;
+    border: 10px solid #00A3EF;
+    border-radius: 250px 250px 250px 250px;
+    font-size: 50px;
+    font-weight: bold;
+    height: 480px;
+    line-height: 480px;
+    position: relative;
+    top: 20px;
+    width: 480px;
+}
+
+#left, #right {
+	display: table-cell;
+	vertical-align: top;
+	width: 50%;
+}
+
+#content {
+	display: table;
+	width: 100%;
+}
+#container {
+	display: table-row;
+	height: 540px;
+}
+#progressContainer {
+	text-align: center;
+	position: relative;
+	top: 0;
+	left: 0;
+}
+
+#count, canvas {
+	display: none;
+	position: absolute;
+	top:20px;
+}
+
+#dropTarget.hover {
+    background: yellow;
+    color: #999
+}
+
+
+#count {
+	width: 500px;
+	height: 500px;
+	line-height: 500px;
+	font-size: 300px;
+	font-weight: bold;
+	color: rgba(0, 0, 0, 0.5);
+}
+
+.uploading #count,
+.uploading canvas {
+	display: block;
+}
+.uploading #dropTarget {
+	color: rgba(0,0,0,0);
+}
+
+
+.pass {
+	color: #090;
+}
+.fail {
+	color: #900;
+}
+tr > * {
+	padding: 4px;
+}
+table {
+	width: 100%;
+}
+thead > tr,
+tbody > *:nth-child(even) {
+	background-color: #ddd;
+}
+tbody > *:nth-child(odd) {
+	background-color: #eee;
+}
+progress {
+	width: 100%;
+}
+tr > td:nth-child(2) {
+	text-align: right;
+}
+tr > td:nth-child(3) {
+	text-align: center;
+}
+   </style>
+</head>
+<body>
+<div id="title">HTML5 Drag &amp; Drop Upload Cross Site</div>
+<div id="intro">Drag and Drop files into the circle below to upload them to the specified destination. The destination must use CORS to accept upload request.</div>
+
+<div id="content">
+  <div id="container">
+     <div id="left">
+
+           <div id="progressContainer">
+
+                <div id="dropTarget">
+                     Drop File Here
+                </div>
+
+                <canvas width="500" height="500"></canvas>
+                <div id="count">8</div> 
+           </div> 
+
+     </div>
+     <div id="right">
+                        <table cellspacing="0">
+					<thead>
+						<tr>
+							<th width="33%">Name</th>
+							<th width="33%">Size (bytes)</th>
+							<th width="33%">Status</th>
+						</tr>
+					</thead>
+					<tbody id="results"></tbody>
+				</table>
+     </div>
+  </div>
+</div>
+
+
+   <script type="text/javascript">
+
+   (function(){
+
+     var $ = function( id ){ return document.getElementById(id) }
+     var C = function( node ) { return document.createElement( node ) }
+
+     var LINE_WIDTH = 10,
+         dropTarget = $('dropTarget'),
+         canvas = document.querySelector('canvas'),
+         context = canvas.getContext('2d'),
+         container = $('container'),
+         count = $('count'),
+         destination = $('destination'),
+         results = $('results'),
+         cx = canvas.width / 2,
+         cy = canvas.height / 2
+         radius = Math.min( cx ,cy ) - LINE_WIDTH / 2,
+         startAngle = - Math.PI / 2,
+         list = [],
+         totalSize = 0,
+         totalProgress = 0 
+
+     function init() {
+         dropTarget.addEventListener("drop", handleDrop, false)
+         dropTarget.addEventListener("dragover", handleDragOver, false)
+         dropTarget.addEventListener("dragleave", handleDragLeave, false)
+     }     
+
+
+     function drawProgress( progress ) {
+
+         context.clearRect(0, 0, canvas.width, canvas.height)
+         var endAngle = startAngle + progress * 2 * Math.PI
+         context.beginPath()
+         context.strokeStyle = "#00a3ef"
+         context.lineWidth = LINE_WIDTH
+         context.fillStyle = "rgb(146, 208, 80)"
+         context.moveTo(cx, cy)
+         context.arc(cx, cy, radius, startAngle, endAngle)   
+         context.closePath()
+         context.fill()
+         context.stroke()
+     } 
+
+     function handleDragOver( event ) {
+         dropTarget.className = 'hover'   
+         event.preventDefault()
+         event.stopPropagation() 
+     } 
+
+     function handleDragLeave( event ) {
+         dropTarget.className = ''   
+         event.preventDefault()
+         event.stopPropagation() 
+     } 
+
+     function startUpload( file ) {
+
+         var result = C("tr"),
+             name = C("td"),
+             size = C("td"),
+             status = C("td"),
+             progress = C("progress")
+
+             status.appendChild( progress )
+             result.appendChild( name )
+             result.appendChild( size )
+             result.appendChild( status )
+             results.appendChild( result )
+
+             name.textContent = file.name
+             size.textContent = file.size
+
+             if(file.size >= 5000000) {
+
+               status.textContent = "MAX SIZE EXCEEDED"
+               status.className = 'fail'
+               size.className = 'fail'
+               handleComplete( file.size )
+
+             } else {
+
+               uploadFile( file, status, progress )  
+             }
+     }
+
+     function uploadFile( file, status, progress ) {
+
+             debugger;
+
+             var formData = new FormData()
+
+             formData.append('file', file)
+  
+             var xhr = new XMLHttpRequest()
+
+                 xhr.open("POST", 'upload.php')
+
+                 xhr.onload = function() {
+
+                     status.textContent = "Upload Complete"
+                     status.className = 'pass' 
+                     handleComplete( file.size )
+                 }
+
+                 xhr.onerror = function() {
+
+                     status.textContent = "Upload Failed"
+                     status.className = 'fail' 
+                     handleComplete( file.size )
+                 } 
+
+                 xhr.upload.onprogress = function( event ) {
+                     //console.log(event.loaded + ' / ' + event.total +' => '+ event.loaded / event.total)
+                     progress.value = event.loaded / event.total
+                     handleProgress( event )
+                 } 
+
+                 xhr.onloadstart = function( event ) {
+
+                     progress.setAttribute( "value" , 0 )   
+                 }  
+
+                 xhr.send( formData )
+     }
+     
+     function handleComplete( size ) {
+
+                 totalProgress += size
+                 drawProgress( totalProgress / totalSize )     
+                 uploadNext()        
+     }
+ 
+     function handleProgress( event ) {
+
+              var progress = totalProgress + event.loaded
+
+              console.log(event.loaded + ' <=> ' + progress / totalSize + ' - ' + totalSize)
+ 
+              drawProgress( progress / totalSize )   
+     }
+
+     function processFiles( filelist, event ) {
+
+              if( !filelist || !filelist.length) { 
+                   return false
+              }
+
+              reset()
+
+              for(var i=0, j=filelist.length; i<j; i++) {
+                      list.push(filelist[i])
+                      totalSize += filelist[i].size
+              }
+
+              uploadNext()
+     }
+ 
+     function uploadNext() {
+
+             if( list.length > 0 ) {
+
+                 count.textContent = list.length
+                 container.className = "uploading"
+
+                 startUpload(list.shift())
+               
+             } else {
+
+                 container.className = ""
+             }
+     }     
+
+     function reset() {
+             totalSize = 0
+             totalProgress = 0 
+             results.textContent = ""
+     }
+
+     function handleDrop( event ) {
+
+         event.preventDefault()
+         event.stopPropagation() 
+         dropTarget.className = ''
+
+         processFiles( event.dataTransfer.files )  
+     }
+   
+     init()
+   })()
+
+   </script>
+</body>
+</html>
+
